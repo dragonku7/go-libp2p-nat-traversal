@@ -4,14 +4,16 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	secio "github.com/libp2p/go-libp2p-secio"
 
+	ntraversal "github.com/dragonku7/go-libp2p-nat-traversal"
 	logging "github.com/ipfs/go-log"
 	libp2p "github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p-core/host"
+	inet "github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peerstore"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
-	inet "github.com/libp2p/go-libp2p-net"
 	ma "github.com/multiformats/go-multiaddr"
-
-	ntraversal "github.com/upperwal/go-libp2p-nat-traversal"
 )
 
 var log = logging.Logger("nat-traversal")
@@ -19,6 +21,7 @@ var log = logging.Logger("nat-traversal")
 type netNotifiee struct{}
 
 func (nn *netNotifiee) Connected(n inet.Network, c inet.Conn) {
+	h.Peerstore().AddAddr(c.RemotePeer(), c.RemoteMultiaddr(), peerstore.PermanentAddrTTL)
 	fmt.Printf("Connected to: %s/p2p/%s\n", c.RemoteMultiaddr(), c.RemotePeer().Pretty())
 }
 
@@ -27,6 +30,8 @@ func (nn *netNotifiee) OpenedStream(n inet.Network, v inet.Stream) {}
 func (nn *netNotifiee) ClosedStream(n inet.Network, v inet.Stream) {}
 func (nn *netNotifiee) Listen(n inet.Network, a ma.Multiaddr)      {}
 func (nn *netNotifiee) ListenClose(n inet.Network, a ma.Multiaddr) {}
+
+var h host.Host
 
 func main() {
 	logging.SetLogLevel("nat-traversal", "DEBUG")
@@ -40,22 +45,23 @@ func main() {
 	// Other options can be added here.
 	sourceMultiAddr, _ := ma.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", *port))
 
-	host, err := libp2p.New(ctx, libp2p.ListenAddrs(sourceMultiAddr))
+	var err error
+	h, err = libp2p.New(ctx, libp2p.ListenAddrs(sourceMultiAddr), libp2p.Security(secio.ID, secio.New))
 	if err != nil {
 		panic(err)
 	}
 
 	no := &netNotifiee{}
-	host.Network().Notify(no)
+	h.Network().Notify(no)
 
-	fmt.Println("This node: ", host.ID().Pretty(), " ", host.Addrs())
+	fmt.Println("This node: ", h.ID().Pretty(), " ", h.Addrs())
 
-	d, err := dht.New(ctx, host)
+	d, err := dht.New(ctx, h)
 	if err != nil {
 		panic(err)
 	}
 
-	ntraversal.NewNatTraversal(ctx, &host, d)
+	ntraversal.NewNatTraversal(ctx, &h, d)
 
 	select {}
 }

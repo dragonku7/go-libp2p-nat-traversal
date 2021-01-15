@@ -10,7 +10,7 @@ import (
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	mh "github.com/multiformats/go-multihash"
 
-	ntraversal "github.com/upperwal/go-libp2p-nat-traversal"
+	ntraversal "github.com/dragonku7/go-libp2p-nat-traversal"
 )
 
 func main() {

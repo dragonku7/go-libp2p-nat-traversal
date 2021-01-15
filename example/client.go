@@ -4,17 +4,17 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	mplex "github.com/libp2p/go-libp2p-mplex"
+	secio "github.com/libp2p/go-libp2p-secio"
 	"os"
 	"time"
 
+	ntraversal "github.com/dragonku7/go-libp2p-nat-traversal"
 	logging "github.com/ipfs/go-log"
 	libp2p "github.com/libp2p/go-libp2p"
+	peer "github.com/libp2p/go-libp2p-core/peer"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
-	peer "github.com/libp2p/go-libp2p-peer"
 	ma "github.com/multiformats/go-multiaddr"
-	mplex "github.com/whyrusleeping/go-smux-multiplex"
-
-	ntraversal "github.com/upperwal/go-libp2p-nat-traversal"
 )
 
 type arrayFlags []string
@@ -55,6 +55,7 @@ func main() {
 		ctx,
 		libp2p.ListenAddrs(sourceMultiAddr),
 		libp2p.Muxer("/mplex/6.7.0", mplex.DefaultTransport),
+		libp2p.Security(secio.ID, secio.New),
 	)
 	if err != nil {
 		panic(err)

@@ -3,10 +3,10 @@ package ntraversal
 import (
 	"bufio"
 
+	protocol "github.com/dragonku7/go-libp2p-nat-traversal/protocol"
 	ggio "github.com/gogo/protobuf/io"
 	proto "github.com/golang/protobuf/proto"
-	inet "github.com/libp2p/go-libp2p-net"
-	protocol "github.com/upperwal/go-libp2p-nat-traversal/protocol"
+	inet "github.com/libp2p/go-libp2p-core/network"
 )
 
 type streamWrapper struct {

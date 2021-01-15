@@ -7,17 +7,17 @@ import (
 	"strings"
 	"sync"
 
-	protocol "github.com/upperwal/go-libp2p-nat-traversal/protocol"
+	protocol "github.com/dragonku7/go-libp2p-nat-traversal/protocol"
 
 	ggio "github.com/gogo/protobuf/io"
 
 	iaddr "github.com/ipfs/go-ipfs-addr"
 	logging "github.com/ipfs/go-log"
-	host "github.com/libp2p/go-libp2p-host"
+	host "github.com/libp2p/go-libp2p-core/host"
+	inet "github.com/libp2p/go-libp2p-core/network"
+	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peerstore"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
-	inet "github.com/libp2p/go-libp2p-net"
-	peer "github.com/libp2p/go-libp2p-peer"
-	pstore "github.com/libp2p/go-libp2p-peerstore"
 	swarm "github.com/libp2p/go-libp2p-swarm"
 )
 
@@ -78,9 +78,9 @@ func NewNatTraversal(ctx context.Context, host *host.Host, dht *dht.IpfsDHT, opt
 func (b *NatTraversal) ConnectToServiceNodes(ctx context.Context, listPeers []string) {
 	for _, peerAddr := range listPeers {
 		addr, _ := iaddr.ParseString(peerAddr)
-		peerinfo, _ := pstore.InfoFromP2pAddr(addr.Multiaddr())
+		peerinfo, _ := peer.AddrInfoFromP2pAddr(addr.Multiaddr())
 
-		(*b.host).Peerstore().AddAddrs(peerinfo.ID, peerinfo.Addrs, pstore.PermanentAddrTTL)
+		(*b.host).Peerstore().AddAddrs(peerinfo.ID, peerinfo.Addrs, peerstore.PermanentAddrTTL)
 		log.Info("Connecting to: ", peerinfo.ID)
 		if s, err := (*b.host).NewStream(ctx, peerinfo.ID, protocolBootstrap); err == nil {
 			log.Info("Connection established with bootstrap node: ", *peerinfo)
@@ -152,7 +152,13 @@ func (b *NatTraversal) messageHandler() {
 			}
 		case o := <-b.outgoing:
 			log.Info("sending out: ", o.peer, o.packet)
-			go b.bootstrapPeers.peerList[o.peer].writeMsg(o.packet)
+			wrapper, exists := b.bootstrapPeers.peerList[o.peer]
+			if exists {
+				go wrapper.writeMsg(o.packet)
+			} else {
+				log.Errorf("not found connected peer for %s", o.peer.String())
+			}
+
 		}
 	}
 }
@@ -188,7 +194,7 @@ func (b *NatTraversal) findPeerInfo(p peer.ID) ([]byte, error) {
 		log.Error(err)
 		return nil, fmt.Errorf("Could not find a peer")
 	}
-	piPublic := pstore.PeerInfo{}
+	piPublic := peer.AddrInfo{}
 	for _, addr := range pi.Addrs {
 		// hacky way to remove all loopback and private addresses
 		// should be removed
@@ -225,7 +231,7 @@ func (b *NatTraversal) sendPunchRequest(to peer.ID, pi []byte) {
 func (b *NatTraversal) sendErrMessage(err error) {}
 
 func (b *NatTraversal) handleHolePunchRequest(m PacketWPeer) {
-	pi := pstore.PeerInfo{}
+	pi := peer.AddrInfo{}
 	pi.UnmarshalJSON(m.packet.PeerInfo.Info)
 
 	log.Info("Got punch request to: ", pi)
@@ -244,7 +250,6 @@ func (b *NatTraversal) handleHolePunchRequest(m PacketWPeer) {
 			break
 		}
 		(*b.host).Network().(*swarm.Swarm).Backoff().Clear(pi.ID)
-
 		log.Error(err)
 
 		if strings.Contains(err.Error(), "no route to host") {
